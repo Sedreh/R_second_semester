@@ -1,0 +1,42 @@
+---
+title: "HM_FINAL"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r}
+data <- read.csv('/home/sedreh/university_files/ITMO/semester2/Statistic-R/2/bosson.csv', sep = ";")
+head(data)
+```
+
+```{r}
+calc_subdata <- function(data, row_s, col_s){
+data <- data[row_s,col_s]
+result = list()
+for (col_name in names(data)) {
+  col_value <- data[[col_name]]
+  if(class(col_value) == 'numeric' | class(col_value) == 'integer') {
+    statistics <- list(sum=sum(col_value), mean=mean(col_value))
+    result[[col_name]] <- statistics
+  } else {
+      result[[col_name]] <- table(col_value)
+    }
+}
+result
+}
+calc_subdata(data, row_s = 1:nrow(data), col_s = 1:ncol(data))
+
+```
+
+```{r}
+data("infert")
+calc_subdata(infert, row_s = 1:nrow(infert), col_s = 1:ncol(infert))
+```
+
+```{r}
+data("morley")
+calc_subdata(morley, row_s = 1:nrow(morley), col_s = 1:ncol(morley))
+
+```
+
