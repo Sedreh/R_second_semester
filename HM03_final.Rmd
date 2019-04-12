@@ -1,0 +1,42 @@
+---
+title: "HM03_final"
+output: word_document
+---
+```{r}
+library(tidyr)
+library(dplyr)
+library(data.table)
+```
+
+```{r}
+data("iris")
+```
+
+```{r}
+split_data <-  function(data) {
+  numeric_index <- sapply(data, is.numeric) | sapply(data, is.integer) # gives index of numeric values
+  numeric_data <- data[,which(numeric_index), drop=F] # selects numeric data
+  non_numeric_data <- data[,which(!numeric_index), drop = F] # selects non numeric data
+  list(numeric_data=numeric_data, non_numeric_data=non_numeric_data) # returns both data as list
+}
+```
+
+
+```{r}
+calc <- function(data, row_s, col_s) {
+  data <- data[row_s, col_s]
+  s_data <- split_data(data)
+  means <- colMeans(s_data$numeric_data)
+  sums <- colSums(s_data$numeric_data)
+  f_table <- lapply(s_data$non_numeric_data, table)
+  list(mean=means, sum=sums, freq_table=f_table)
+}
+calc(iris, row_s = 1:nrow(iris), col_s = 1:ncol(iris))
+```
+
+```{r}
+data <- read.csv('/home/sedreh/university_files/ITMO/semester2/Statistic-R/2/bosson.csv', sep = ";")
+#head(data)
+calc(data, row_s = 1:nrow(data), col_s = 1:ncol(data))
+```
+
