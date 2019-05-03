@@ -1,0 +1,43 @@
+---
+title: "HM05_final"
+output: word_document
+---
+
+```{r}
+library(dplyr)
+library(data.table)
+library(magrittr) 
+```
+
+
+```{r}
+rewrite_dplyr <- function(my_data, row_s, col_s){
+
+ calc_my_data <- function(data){
+ if (is.numeric(data)){
+ return(c(sum(data), mean(data), median(data)))
+ } else{
+ return(table(data))
+ }
+ }
+
+ final_data <- my_data[row_s, col_s]
+ my_data %<>% lapply(calc_my_data) %<>% list()
+
+ list(final_data, my_data)
+}
+```
+
+
+```{r}
+data <- read.csv('/home/sedreh/ITMO/semester2/Statistic-R/2/bosson.csv', sep = ";")
+summary(data)
+
+```
+
+
+```{r}
+result <- rewrite_dplyr(data)
+result
+
+```
