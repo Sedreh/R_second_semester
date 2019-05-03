@@ -1,0 +1,70 @@
+---
+title: "Hm04_final"
+output: word_document
+---
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyr)
+```
+
+
+```{r}
+# read the data and look at the structure
+data <- read.csv("/home/sedreh/ITMO/semester2/Statistic-R/4/data-cleaning.csv", header=TRUE)
+summary(data)
+```
+
+
+```{r}
+#looking at data
+head(data)
+```
+
+
+```{r}
+#for our project we need just 5 column of this data
+chosen_column <- data %>%
+  select ("barcode","contig_id", "v_gene", "d_gene", "j_gene", "productive")
+chosen_column
+```
+
+
+```{r}
+#In contig_id column we need separate cell(AAATTTGGGCCAAATTGGG) from contig
+split_contig <- separate (chosen_column, contig_id, c("contig", "id")) 
+split_contig  
+```
+
+
+```{r}
+#My gole was spliting "contig_id" column like this: "AAACCTGAGACCTTTG-1_contig_1" = "AAACCTGAGACCTTTG" and "-1_contig_1" so i will do it by separate function
+separate_contig <- separate(chosen_column,
+         col = "contig_id",
+         into = c("contig", "id"),
+         sep = "_")  
+separate_contig
+```
+
+
+```{r}
+#In data we have "NA" values for genes' column that shows non_productive chains!! so we should delete them
+sum(is.na(separate_contig))
+```
+
+
+```{r}
+na.omit(separate_contig)
+```
+
+
+
+```{r}
+#Also we need to know number of cells that shows with unique barcodes! here we have many duplicate! so should extract just unique ones!
+number_of_cells <- separate_contig %>% 
+    distinct(barcode) %>% 
+    count()
+  number_of_cells$n 
+```
+
