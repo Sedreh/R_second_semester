@@ -38,7 +38,7 @@ scatter + geom_point(aes(color=Species, shape=Species)) +
 
 
 ```{r}
-#But in order to capitalize on ggplot functionality, we need to reorganize the data so each row only has data for a single trait, this is known as “long” format, where each row only has a single trait observation. To make this data conversion, we use the the gather function:
+#But in order to capitalize on ggplot functionality, we need to reorganize the data so each row only has data for a single trait, this is known as “long” format, where each row only has a single trait observation.Long format describes dataset in which the values of variables are gathered in two or three long columns, while wide format describes dataset in which the information is spread across many columns. To make this data conversion, we use the the gather function:
 iris.long <- gather(data = iris,
                     key = trait,
                     value = measurement, 
