@@ -1,0 +1,163 @@
+---
+title: "HM07_final"
+author: "Sedreh"
+date: "5/10/2019"
+output: html_document
+---
+
+```{r}
+library(tibble)
+library(datasets)
+library(ggplot2)
+library(ggthemes)
+library(gapminder)
+library(gganimate)
+theme_set(theme_bw())
+gapminder
+```
+```{r}
+p <- ggplot(gapminder, aes(x = gdpPercap, y=lifeExp, size = pop, colour = continent)
+  ) +
+  geom_point(show.legend = TRUE, alpha = 0.5) +
+  scale_x_log10() +
+  labs(x = "GDP per capita", y = "Life expectancy") +
+  ggtitle("lifeExp against gdpPercap")
+  #theme(text = element_text(size = 8))
+p
+```
+
+```{r}
+#lifeExp against gdpPercap ( see all of our data by facetting by year)
+
+p <- ggplot(gapminder,aes(x=gdpPercap, y=lifeExp,color=continent,size=pop))+
+  geom_point(alpha = 0.8)+
+  facet_wrap(~year)+
+  scale_x_log10() +
+  labs(x = "GDP per capita", y = "Life expectancy")+
+  ggtitle("lifeExp against gdpPercap (facet by year)")+
+  theme(text = element_text(size = 8))
+p
+```
+
+
+```{r}
+#I found some beautiful function and I just wanted practice it in this homework!!!
+
+# Transition_time() function. The transition length between the states will be set to correspond to the actual time difference between them.
+# Label variables: frame_time. Gives the time that the current frame corresponds to.
+# 
+# library(gapminder)
+# 
+# p <-ggplot(gapminder, aes(gdpPercap, lifeExp, size = pop, colour = country)) +
+#   geom_point(alpha = 0.7, show.legend = TRUE) +
+#   scale_colour_manual(values = country_colors) +
+#   scale_size(range = c(2, 12)) +
+#   scale_x_log10() +
+#   facet_wrap(~continent) +
+#   # Here comes the gganimate specific bits
+#   labs(title = 'Year: {frame_time}', x = 'GDP per capita', y = 'life expectancy') +
+#   transition_time(year) +
+#   ease_aes('linear')
+# p
+```
+
+
+```{r}
+#understand the data
+# The air quality dataset, which pertains to the daily air quality measurements in New York from May to September 1973. This dataset consists of more than 100 observations on 6 variables i.e. Ozone(mean parts per billion), Solar.R(Solar Radiation), Wind(Average wind speed), Temp(maximum daily temperature in Fahrenheit), Month(month of observation) and Day(Day of the month)
+```
+
+
+```{r}
+#we should clean data! it contains missing values
+airquality <- na.omit(airquality)
+#also wecan do it inside ggplot like this: (geom_point(na.rm=TRUE))
+```
+
+
+```{r}
+head(airquality)
+```
+
+```{r}
+# In “wide” (“multivariate”) format, the three environmental parameters, ozone, wind and temp
+# appear as separate variables. In “long ” (“univariate”) format, they appear as different levels of the
+# variable parameter. tidyr is a very powerful package for converting between long (univariate) and wide (multivariate) formats(also we can use reshape2). 
+###########################
+
+airquality_long <- reshape(data=airquality, varying=1:4, v.names="Measure", 
+                          timevar="Dimension", times=names(airquality)[1:4], 
+                          idvar="Measure ID", direction="long")
+
+# data = dataframe you want to convert
+# varying = columns in the wide format that correspond to a single column in the long format
+# timevar = name of new variable that differentiates multiple observations from the same individual
+# idvar = variable in your dataset that identifies multiple records from the same individual
+# direction = “wide” if you’re going from long to wide and “long” if you’re going from wide to long
+
+
+#########################
+#second method
+#airquality_long <- gather(airquality, variable, value, -Month, -Day)
+
+# key= provides a name for the new variable that is created by gathering together several
+# variables from the previous data frame
+# value= provides a name for the new variable that accompanies the keying variable
+
+(airquality_long)
+```
+
+
+```{r}
+#Data: Airquality, transform, plot all measures by time
+library(viridis)
+p <- ggplot(airquality_long, aes(x = Day, y= Measure, color= Dimension, fill=Dimension)) + geom_point() +
+  geom_line() +
+  facet_grid(Dimension ~ Month, scales = "free")+
+  labs(x = "Day", y = "Value")+ 
+  ggtitle("plot all measures in airquality dataset (facet by Day)") +
+  theme(text = element_text(size = 9))
+
+  # scale_colour_manual(values = viridis(4, option = "D"))
+
+p
+```
+```{r}
+#Distributional plot
+#Load dataset:
+head(mpg)
+
+```
+
+
+```{r}
+#cyl is numric data. we need to change numeric data to a factor.
+p <- ggplot(mpg, aes(cty)) +
+  geom_density(aes( fill = factor(cyl), adjust= 1.5, alpha = 0.85))+
+  labs (title = "City Mileage grouped by number of cylinders", x = "city Milage", y= "Distributaion of data")+
+  theme_bw()
+  
+p
+```
+
+
+```{r}
+#Distributional plot
+#Load dataset:
+data <- read.csv ("/home/sedreh/ITMO/semester2/Statistic-R/7/mammals.csv")
+#view(data)
+head(data)
+```
+
+
+```{r}
+data <- na.omit(data)
+p <- ggplot(data, aes(TotalSleep)) +
+  geom_density(aes( fill = factor(Predation), adjust= 1.5, alpha = 0.35))+
+  labs (x = "Total number of hours of sleep", y= "Distributaion of data")+
+  theme_bw()
+  
+p
+```
+
+
