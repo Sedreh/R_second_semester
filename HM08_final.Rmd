@@ -1,0 +1,177 @@
+---
+title: "HM08_final"
+author: "Sedreh"
+date: "5/16/2019"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(DetR)
+data("chis2009")
+```
+
+
+```{r}
+data = load("/home/sedreh/ITMO/semester2/Statistic-R/8/CHIS2009_reduced_2.Rdata")
+data <- adult
+```
+
+
+```{r}
+#Explore age (SRAGE_P) 
+p <- ggplot(adult, aes(SRAGE_P) )+
+  geom_histogram(binwidth = 1)
+p
+```
+
+
+```{r}
+#Explore BMI (BMI_P)
+p <- ggplot(adult, aes(BMI_P)) + 
+  geom_histogram(binwidth = 1)
+p
+```
+
+
+```{r}
+#Explore BMI groups (RBMI)
+p <- ggplot(adult, aes(RBMI)) + 
+  geom_histogram(binwidth = 1)
+p
+```
+
+```{r}
+#histogram of ages colored by BMI groups
+p <- ggplot(adult, aes(SRAGE_P, fill = as.factor(RBMI))) + geom_histogram(binwidth = 1)
+p
+```
+
+
+```{r}
+#Data cleaning: age under the value
+# Age under the value
+# Keep BMI between 16 (incl) and 52 (excl)
+
+clean_data <- filter(data, BMI_P >= 16 & BMI_P <= 52)
+clean_data <- filter(adult, SRAGE_P < 85)
+
+```
+
+
+```{r}
+#Relabel race (RACEHPR2)
+clean_data$RACEHPR2 <- factor(clean_data$RACEHPR2, labels = c("Latino", "Asian", "African American", "White"))
+```
+```{r}
+#Relabel BMI groups
+clean_data$RBMI <- factor(clean_data$RBMI, labels = c("Under", "Normal", "Over", "Obese"))
+
+```
+
+```{r}
+#Build a histogram of ages colored and facet by BMI groups
+p <- ggplot(clean_data, aes(SRAGE_P, fill = as.factor(RBMI))) + 
+  geom_histogram(binwidth = 1)+
+  facet_grid(RBMI~.)+
+  labs(x = "Age")+
+  ggtitle("histogram of ages facet by BMI groups")+
+  theme(text = element_text(size = 8))
+p
+```
+
+
+```{r}
+#Color with another palette
+p <- ggplot(clean_data, aes(SRAGE_P, fill = as.factor(RBMI))) + 
+  geom_histogram(binwidth = 1)+
+  facet_grid(RBMI~.)+
+  labs(x = "Age")+
+  ggtitle("histogram of ages colored and facet by BMI groups")+
+  theme(text = element_text(size = 8))+
+  scale_fill_brewer('BMI group', palette = 'Reds')
+p
+```
+
+
+```{r}
+#Use theme_classic() and theme(strip.text.y = element_blank())
+p <- ggplot(clean_data, aes(SRAGE_P, fill = as.factor(RBMI))) +
+  geom_histogram(binwidth = 1)+
+  facet_grid(RBMI~.)+
+  labs(x = "Age")+
+  ggtitle("histogram of ages colored and facet by BMI groups")+
+  theme(text = element_text(size = 8))+
+  scale_fill_brewer('BMI group', palette = 'Reds')+
+  theme_classic()+
+   theme(strip.text.y = element_blank())
+p
+
+```
+
+
+```{r}
+#proportional histogram
+p <- ggplot(clean_data, aes(SRAGE_P, fill = as.factor(RBMI))) +
+  geom_histogram(binwidth = 1, position = "fill")+
+  labs(x = "Age")+
+  ggtitle("Proportional histogram")+
+  theme(text = element_text(size = 8))+
+  scale_fill_brewer('BMI group', palette = 'Reds')+
+  theme_classic()+
+  theme(strip.text.y = element_blank())
+p
+```
+```{r}
+#use both facet and proportion
+p <- ggplot(clean_data, aes(SRAGE_P, fill = as.factor(RBMI))) +
+  geom_histogram(binwidth = 1, position = "fill")+
+  facet_grid(RBMI~.)+
+  labs(x = "Age")+
+  ggtitle("Proportional histogram")+
+  theme(text = element_text(size = 8))+
+  scale_fill_brewer('BMI group', palette = 'Reds')+
+  theme_classic()+
+  theme(strip.text.y = element_blank())
+  
+p
+
+#we can't understand any useful information from this plot!!
+```
+
+```{r}
+#Make frequency table with ages(columns) and proportions of each BMI group relative to each age(rows)
+
+# A frequency table is a table that represents the number of occurrences of every unique value in the variable.
+#You can generate frequency tables using the table( ) function, tables of proportions using the prop.table( ) function, and marginal frequencies using margin.table( ).
+
+Two_way_table <- table(clean_data$RBMI, clean_data$SRAGE_P )
+Two_way_table
+
+
+```
+```{r}
+library(pheatmap)
+library(tidyr)
+View(adult)
+x <- table(clean_data$SRAGE_P, clean_data$RBMI, clean_data$BMI_P)
+prop_df <- prop.table(x)
+# melting this new_df_prop (new matrix of proportions)
+new_melted <- data.frame(reshape2::melt(prop_df))
+new_melted
+```
+```{r}
+
+# Build a histogram of ages colored by BMI groups
+# Add facet by BMI group
+# Color with another palette: scale_fill_brewer(“BMI group”, palette = “Reds”)
+# Use theme_classic() and theme(strip.text.y = element_blank())
+p <- ggplot(new_melted, aes(x=Var1, y = value, fill = Var2)) +
+geom_col(stat = 'identity')
+k <- p +facet_grid(Var2~.)
+g <- k+ scale_fill_brewer("BMI group", palette = "Reds")
+g + theme_classic() + theme(strip.text.y = element_blank())
+```
+
