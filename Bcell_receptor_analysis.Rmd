@@ -1,0 +1,527 @@
+---
+title: "Bcell_receptor_analysis"
+author: "Sedreh"
+date: "5/10/2019"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(data.table)
+library(seqinr)
+library(Biostrings)
+library(ggplot2)
+library(stringi)
+library(bcRep)
+```
+
+```{r}
+########################################
+#processing 10x genomics filtered dataset
+########################################
+```
+
+
+```{r}
+#load the dataset
+filtered_data = read.csv ('/home/GM12878_human/vdj_v1_hs_gm12878_b_filtered_contig_annotations.csv')
+```
+
+
+```{r}
+#As we have several copies of each barcode in the file, in ordre to count the number of cells we need to count just one copy of unique barcoe
+
+barcode_summary <- function(filtered_data)
+{
+  number_of_cells <- filtered_data %>% 
+    distinct(barcode) %>%
+    dplyr::count()
+  
+number_of_cells$n 
+}
+```
+
+
+```{r}
+#look at to the quality of chains
+
+count_table <- function(filtered_data)
+{
+v_gene_and_j_gene <- filter(filtered_data, v_gene != 'None' & j_gene != 'None')
+v_gene_and_j_gene <- count(v_gene_and_j_gene)$n
+
+no_v_gene_and_no_j_gene <- filter(filtered_data, v_gene == 'None' & j_gene == 'None')
+no_v_gene_and_no_j_gene <- count(no_v_gene_and_no_j_gene)$n
+
+v_gene_or_j_gene <- filter(filtered_data, v_gene != 'None' | j_gene != 'None')
+v_gene_or_j_gene <- count(v_gene_or_j_gene)$n
+
+stats <- data.frame(v_gene_and_j_gene, v_gene_or_j_gene, no_v_gene_and_no_j_gene)
+stats
+}
+```
+
+
+```{r}
+#How many IGK,IGH, IGL and Multi we have in the data? (cell distribution based on chain type)
+Summary <- function(filtered_data)
+{
+  chain_summary <- group_by(filtered_data, chain)
+  chain_summary <- summarize(chain_summary, count=n()) 
+  chain_summary
+}
+```
+
+
+```{r}
+#Number of copies of each cell (we want to know how many copy of each cell we have)
+
+barcode_summary <- function(filtered_data)
+  {
+  barcode_summary <- group_by(filtered_data, barcode) 
+  barcode_summary <- summarize(barcode_summary, count=n())
+  barcode_summary
+}
+```
+
+```{r}
+#B cells distribution by number of chains in a cell
+
+barcode_summary <- function(filtered_data)
+  {
+  barcode_summary <- group_by(filtered_data, barcode) 
+  barcode_summary <- summarize(barcode_summary, count=n())
+  barcode_summary <- group_by(barcode_summary, count) 
+  barcode_summary <- summarize(barcode_summary, count_total=n())
+  barcode_summary
+}
+copy_barcode_filtered <- barcode_summary(filtered_data)
+```
+
+```{r}
+#B cells distribution by number of chains in a cell(percentage)
+copy_barcode_filtered$count_total_pct = round((copy_barcode_filtered$count_total / sum(copy_barcode_filtered$count_total)) * 100,2)
+```
+
+
+```{r}
+#we want to know each cell contain how many chain
+occurance_of_each_chain <- function(filtered_data)
+  {
+  result <- filtered_data %>%
+    group_by(barcode, chain) %>%
+    filter(chain %in% c('IGK','IGH','IGL')) %>%
+    summarize(count=n())
+  result <- unite(result, 'result_chain', count, chain, remove=F, sep='') 
+  result <- summarize(result, type=paste(result_chain, collapse='_'), count=sum(count))
+  result
+}
+```
+
+
+```{r}
+# occurance of each condition (we can add which condition that we want)
+#the purpose of this calculation is that we want to know how many cell with one heavy chain and one light chain there are(if there are too many, so it is good news) and also how many cells with 2 light chain we can find in the data! with this calculation we can study dual light chain effect
+
+Condition <- function (result)
+  {
+  
+  many_conditions = c(
+  '1IGL', '1IGH', '1IGK', '1IGH_1IGK_1IGL' , '1IGH_1IGL' , '1IGH_1IGK', '1IGH_2IGK', 'IGH_2IGL')
+  result %>% 
+  filter(type %in% many_conditions) %>% 
+  group_by(type) %>% 
+  summarise(total=n())
+}
+filtered_condition <- Condition(occurance_of_each_chain(filtered_data))
+```
+
+
+```{r}
+#beside above condition that we find,there are cells with other condition too. 
+get_total_without_condition <- function(result) {
+  result %>%
+    group_by(type) %>% 
+    summarise(total=n()) %>%
+    pull(total) %>%
+    sum
+}
+total_without_condition <- get_total_without_condition(occurance_of_each_chain(filtered_data))
+
+other_data <- data.frame('Other', total_without_condition - sum(filtered_condition$total))
+names(other_data) <- names(filtered_condition)
+filtered_condition <- rbind(filtered_condition, other_data)
+```
+
+
+```{r}
+#calculation with percentage
+filtered_condition$total_pct = round((filtered_condition$total / sum(filtered_condition$total)) * 100, 2)
+```
+
+
+```{r}
+#################################
+#processing migmap output
+#################################
+```
+
+
+```{r}
+#load the dataset
+data_migmap <-read.csv ('/home/GM12878_human/migmap_GM12878_human.csv', sep="\t", header=TRUE)
+```
+
+```{r}
+# we need to have same columns names the same as filtered data for analysis(for example:In #filtered data we have barcode as a first column name but in migmap the name is read.heaer).So we need to split read and header to create barcode column.
+#for this purpose, we need to do some steps:
+preprocess_data <- function(data_migmap){
+separate(data_migmap,
+         col = "read.header",
+         into = c("read", "header"),
+         sep = "_")  
+}
+data <- preprocess_data(data_migmap)
+```
+```{r}
+#from the migmap output we will choose the column that we will work with them and change the columns' name (same as filtered data)
+preprocess <- function(data) {
+data <- data %>% select(barcode = read, v_gene = v.segment, d_gene = d.segment, j_gene= j.segment)
+data
+}
+data <- preprocess(data)
+```
+
+```{r}
+#Number of cells (As we have several copies of each barcode,we need to count just one copy of unique barcoe and calculate number of cells)
+
+barcode_summary <- function(data)
+{
+  number_of_cells <- data %>% 
+    distinct(barcode) %>%
+    dplyr::count()
+  
+number_of_cells$n 
+}
+```
+
+```{r}
+#look at to the quality of chains
+
+count_table <- function(data)
+{
+v_gene_and_j_gene <- filter(data, v_gene != 'None' & j_gene != 'None')
+v_gene_and_j_gene <- count(v_gene_and_j_gene)$n
+
+no_v_gene_and_no_j_gene <- filter(data, v_gene == 'None' & j_gene == 'None')
+no_v_gene_and_no_j_gene <- count(no_v_gene_and_no_j_gene)$n
+
+v_gene_or_j_gene <- filter(data, v_gene != 'None' | j_gene != 'None')
+v_gene_or_j_gene <- count(v_gene_or_j_gene)$n
+
+stats <- data.frame(v_gene_and_j_gene, v_gene_or_j_gene, no_v_gene_and_no_j_gene)
+stats
+}
+
+```
+
+
+```{r}
+# In midmap data we do not have chain column that shows the type of chain in each cell. Therefore we need to creat chain column based on v_gene, d_gene and j_gene (the same as filtered data)
+
+matrix_gene_data <- as.matrix(data[,2:4])
+ matrix_gene_data <- substr(matrix_gene_data, 1, 3) # get only first three characters
+ data$chain <- apply(matrix_gene_data, 1, function(x) {
+   x <- x[!(x %in% ".")] # removeing . 
+   x <- unique(x) # get unique value from row
+   if(length(x) == 0) { # if all are . then return none
+     "None"
+   } else if (length(x) > 1) { # if more than 1 unique value then it's multi
+     "Multi"
+   } else { # otherwise just single chain value
+     x
+   }
+ })
+```
+
+
+```{r}
+#Number of copies of each cell
+
+barcode_summary <- function(data)
+  {
+  barcode_summary <- group_by(data, barcode) 
+  barcode_summary <- summarize(barcode_summary, count=n())
+  barcode_summary
+}
+```
+
+
+```{r}
+#B cells distribution by number of chains in a cell
+barcode_summary <- function(data)
+  {
+  barcode_summary <- group_by(data, barcode) 
+  barcode_summary <- summarize(barcode_summary, count=n())
+  barcode_summary <- group_by(barcode_summary, count) 
+  barcode_summary <- summarize(barcode_summary, count_total=n())
+  barcode_summary
+}
+```
+
+
+```{r}
+#B cells distribution by number of chains in a cell(percentage)
+copy_barcode_migmap$count_total_pct = round((copy_barcode_migmap$count_total / sum(copy_barcode_migmap$count_total)) * 100, 2)
+```
+
+
+```{r}
+#we want to know each cell how many chain has
+
+occurance_of_each_chain <- function(data)
+  {
+  result <- data %>%
+    group_by(barcode, chain) %>%
+    filter(chain %in% c('IGK','IGH','IGL')) %>%
+    summarize(count=n())
+  result <- unite(result, 'result_chain', count, chain, remove=F, sep='') 
+  result <- summarize(result, type=paste(result_chain, collapse='_'), count=sum(count))
+  result
+}
+```
+
+```{r}
+# I added whichever condition that I want from data
+
+Condition <- function (result)
+  {
+  
+  many_conditions = c(
+  '1IGL', '1IGH', '1IGK', '1IGH_1IGK_1IGL' , '1IGH_1IGL' , '1IGH_1IGK', '1IGH_2IGK', 'IGH_2IGL')
+  result %>% 
+  filter(type %in% many_conditions) %>% 
+  group_by(type) %>% 
+  summarise(total=n())
+}
+migmap_condition <- Condition(occurance_of_each_chain(data))
+```
+
+```{r}
+#beside above condition that we find,there are cells with other condition too.
+get_total_without_condition <- function(result) {
+  result %>%
+    group_by(type) %>% 
+    summarise(total=n()) %>%
+    pull(total) %>%
+    sum
+}
+total_without_condition <- get_total_without_condition(occurance_of_each_chain(data))
+
+other_data <- data.frame('Other', total_without_condition - sum(migmap_condition$total))
+names(other_data) <- names(migmap_condition)
+migmap_condition <- rbind(migmap_condition, other_data)
+```
+
+```{r}
+#calculation with percentage
+migmap_condition$total_pct = round((migmap_condition$total / total_without_condition) * 100, 2)
+```
+```{r}
+########################################
+      #calculating chain distance
+########################################
+#for this purpos we need to have read.header in migmapdata instead of barcode because it contains barcode and "contig"! here we need contig for recognizing the type of chain in "fasta file"! so we should not delete it like previous studies!
+```
+
+
+```{r}
+#load migmap output file
+migmap <-read.csv ('/home/GM12878_human/migmap_GM12878_human.csv', sep="\t", header=TRUE)
+#load fasta file for recognizing light chains in cells
+d <- read.fasta('/home/GM12878_human/vdj_v1_hs_gm12878_b_filtered_contig.fasta')
+
+```
+
+
+```{r}
+#select needed columns from data and rename them like filtered data
+preprocess_data <- function(migmap) {
+migmap <- migmap %>% select(barcode = read.header, v_gene = v.segment, d_gene = d.segment, j_gene= j.segment)
+migmap
+}
+```
+
+
+```{r}
+#determine the chain type for each cell based on v, d and j gene and make "chain" column
+matrix_gene_data <- as.matrix(migmap[,2:4])
+ matrix_gene_data <- substr(matrix_gene_data, 1, 3) # get only first three characters
+ migmap$chain <- apply(matrix_gene_data, 1, function(x) {
+   x <- x[!(x %in% ".")] # removeing . 
+   x <- unique(x) # get unique value from row
+   if(length(x) == 0) { # if all are . then return none
+     "None"
+   } else if (length(x) > 1) { # if more than 1 unique value then it's multi
+     "Multi"
+   } else { # otherwise just single chain value
+     x
+   }
+ })
+
+```
+
+
+```{r}
+occurance_of_each_chain <- function(migmap)
+  {
+  result <- migmap %>%
+    group_by(barcode, chain) %>%
+    filter(chain %in% c('IGK','IGH','IGL')) %>% 
+    summarize(count=n())
+  result <- unite(result, 'result_chain', count, chain, remove=F, sep='') 
+  result <- summarize(result, type=paste(result_chain, collapse='_'), count=sum(count))
+  result
+}
+```
+
+```{r}
+#In this step we need to recognize the type of each chain with contig to search the sequence in fasta file
+estimate_condition <- function(migmap) {
+  migmap %>%
+  separate(barcode, into=c('bc','contig'),sep = '1_',remove = F) %>%
+    mutate(bc=substr(bc,2,18)) %>%
+  filter(chain %in% c('IGK','IGH','IGL')) %>%
+     group_by(bc, chain) %>%
+  summarize(contig=paste(contig, collapse = ','), count=n()) %>%
+  unite('result_chain', count, chain, remove=F, sep='') %>%
+  unite('contig', result_chain, contig, sep = '-', remove = F) %>%
+  group_by(bc) %>%
+  summarize(type=paste(result_chain, collapse='_'), count=sum(count), contig=paste(contig, collapse = '@'))
+}
+```
+
+```{r}
+#calculate score of distance between 2 light chain in cells with dual light chain condition
+get_score <- function(s, condition) {
+  mat <- nucleotideSubstitutionMatrix(match = 0, mismatch = 1, baseOnly = TRUE)
+scores <- estimate_condition(s) %>% 
+  filter(type %in%  c(condition)) %>%
+  apply(1, function(x) {
+    contig <- strsplit(x['contig'], '@')[[1]]
+    
+    if(length(contig) == 2) {
+      contig <- strsplit(contig[2], '-')[[1]]
+      contig <- strsplit(contig[2], ',')[[1]]
+      barcodes <- c(
+        paste(x['bc'], contig[1], sep = '1_'), 
+        paste(x['bc'], contig[2], sep = '1_'))
+    } else {
+      contig1 <- strsplit(contig[2], '-')[[1]]
+      contig1 <- strsplit(contig1[2], ',')[[1]]
+      
+      contig2 <- strsplit(contig[3], '-')[[1]]
+      contig2 <- strsplit(contig2[2], ',')[[1]]
+      
+       barcodes <- c(
+        paste(x['bc'], contig1[1], sep = '1_'), 
+        paste(x['bc'], contig2[1], sep = '1_'))
+    }
+   
+    s1 <- DNAString(
+      toupper(
+        paste(d[barcodes[1]][[1]], collapse = '')
+      )
+    )
+    
+    s2 <- DNAString(
+      toupper(
+        paste(d[barcodes[2]][[1]], collapse = '')
+      )
+    )
+    
+    globalAlign <-
+      pairwiseAlignment(s1, s2, substitutionMatrix = mat,
+                      gapOpening = 0, gapExtension = -1, scoreOnly=T)
+    globalAlign
+  }) %>% unlist
+}
+scores_1IGH_2IGL <- -get_score(migmap, '1IGH_2IGL')
+scores_1IGH_2IGL
+scores_1IGH_1IGK_1IGL <- -get_score(migmap, '1IGH_1IGK_1IGL')
+scores_1IGH_1IGK_1IGL
+scores_1IGH_2IGK <- -get_score(migmap, '1IGH_2IGK')
+scores_1IGH_2IGK  
+```
+
+```{r}
+#calculatr light chains' lenght
+get_chain_length <- function(s, condition) {
+lengths <- estimate_condition(s) %>% 
+  filter(type %in%  c(condition)) %>%
+  apply(1, function(x) {
+    contig <- strsplit(x['contig'], '@')[[1]]
+    
+    if(length(contig) == 2) {
+      contig <- strsplit(contig[2], '-')[[1]]
+      contig <- strsplit(contig[2], ',')[[1]]
+      barcodes <- c(
+        paste(x['bc'], contig[1], sep = '1_'), 
+        paste(x['bc'], contig[2], sep = '1_'))
+    } else {
+      contig1 <- strsplit(contig[2], '-')[[1]]
+      contig1 <- strsplit(contig1[2], ',')[[1]]
+      
+      contig2 <- strsplit(contig[3], '-')[[1]]
+      contig2 <- strsplit(contig2[2], ',')[[1]]
+      
+       barcodes <- c(
+        paste(x['bc'], contig1[1], sep = '1_'), 
+        paste(x['bc'], contig2[1], sep = '1_'))
+    }
+    
+    lengths <- list()
+    lengths[[barcodes[1]]] <- length(d[barcodes[1]][[1]])
+    lengths[[barcodes[2]]] <- length(d[barcodes[2]][[1]])
+    
+    lengths
+  })
+  lengths %>% unlist
+}
+get_chain_length(migmap, '1IGH_2IGL') 
+
+```
+
+
+```{r}
+#Making dataframe from all conditions(with two light chain) with distance score
+
+IGH_2IGk.data <- data.frame("1IGH_2IGk",scores_1IGH_2IGK) %>% select(condition = "X.1IGH_2IGk.", score = "scores_1IGH_2IGK")
+#names(IGH_2IGK.data)
+
+IGH_2IGL.data <- data.frame('1IGH_2IGL', scores_1IGH_2IGL)  %>% 
+  data.frame("1IGH_2IGL",scores_1IGH_2IGL) %>% select(condition = "X.1IGH_2IGL.", score = "scores_1IGH_2IGL")
+#names(IGH_2IGL.data)
+
+IGH_IGL_IGK.data <- data.frame("1IGH_1IGK_1IGL",scores_1IGH_1IGK_1IGL) %>%
+  select(condition = "X.1IGH_1IGK_1IGL.", score = "scores_1IGH_1IGK_1IGL")
+#names(IGH_IGL_IGK.data)
+
+migmap <- rbind(IGH_2IGL.data, IGH_IGL_IGK.data)
+migmap$condition <- as.factor(migmap$condition)
+```
+
+
+```{r}
+#plot distance between 2 light chain in cells with dual light chain condition
+p <- ggplot(migmap, aes(x=condition, y=score, fill=condition)) + 
+  geom_boxplot(outlier.colour="red", outlier.shape=1,
+                outlier.size=1)+ 
+  labs(title="Plot of distance between two light chain",x="condition", y = "score")
+p+scale_color_brewer(palette="Dark2")
+p+coord_cartesian(ylim = c(2, 600))
+
+  
+p + theme_classic()
+```
