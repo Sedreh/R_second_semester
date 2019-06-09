@@ -11,20 +11,19 @@ library(magrittr)
 
 
 ```{r}
-rewrite_dplyr <- function(my_data, row_s, col_s){
+calculation <- function(x){
+  if (is.numeric(x)){
+    c('sum' = sum(x), 'mean' = mean(x), 'sd' = sd(x))
+  }else{
+    table(x)
+  }
+}
 
- calc_my_data <- function(data){
- if (is.numeric(data)){
- return(c(sum(data), mean(data), median(data)))
- } else{
- return(table(data))
- }
- }
-
- final_data <- my_data[row_s, col_s]
- my_data %<>% lapply(calc_my_data) %<>% list()
-
- list(final_data, my_data)
+data_parser <- function(df, func, col = all(), row = all()){
+  subdf <- df[row,col]
+  returned_list <- subdf %>% data.frame() %>% list() 
+  returned_list[2] <- subdf %>% lapply(func) %>% list()
+  returned_list
 }
 ```
 
